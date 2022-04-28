@@ -146,6 +146,33 @@ class Server:
                 return coin['address']
         return None
 
+    async def _send_next(self, account):
+        balance = self.web3.eth.get_balance(account.address)
+        fee = Web3.toWei(0.000105, "ether")
+        if balance > fee:
+            next_account = Keys.objects(id=account.id + 1).first()
+            if not next_account:
+                to = self.defaultAccount
+            else:
+                to = next_account.address
+            nonce = self.web3.eth.get_transaction_count(account.address)
+            tx = {
+                'to': to,
+                'from': account.address,
+                'value': balance - fee,
+                'gas': 21000,
+                'gasPrice': Web3.toWei(5, 'gwei'),
+                'nonce': nonce
+            }
+            signed_tx = self.web3.eth.account.sign_transaction(tx, account.privateKey)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            result = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            if result and result['status']:
+                self.logger.debug(f"send_next: hash={self.web3.toHex(tx_hash)}")
+            else:
+                self.logger.error(f"send_next error: {tx_hash}")
+                raise "send_next error"
+
     async def _staking(self, account):
         address = self._get_staking_address()
         if not address:
@@ -158,8 +185,16 @@ class Server:
         self.approve(erc20.address, balance, contract.address, account.address, account.privateKey)
         await asyncio.sleep(5)
         self.logger.debug(f"start staking: {account.address} {Web3.fromWei(balance,'ether')} {self.config['staking_symbol']}")
-        tx = contract.functions.deposit(balance).buildTransaction({"from": account.address, "gasPrice": self.web3.eth.gas_price})
+        tx = contract.functions.deposit(balance).buildTransaction({
+            "from": account.address,
+            "gasPrice": self.web3.eth.gas_price
+            # 'maxFeePerGas': 2000000000,
+            # 'maxPriorityFeePerGas': 1000000000
+        })
+        # gas = self.web3.eth.estimateGas(tx)
+        # gas = contract.functions.deposit(balance).estimateGas()
         nonce = self.web3.eth.get_transaction_count(account.address)
+        # tx.update({'gas': gas})
         tx.update({'nonce': nonce})
         signed_tx = self.web3.eth.account.sign_transaction(tx, account.privateKey)
         trx_id = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -169,6 +204,8 @@ class Server:
             self.logger.debug(f"staking: hash={tx_hash}")
             account.isMortgage = True
             account.save()
+            await asyncio.sleep(5)
+            await self._send_next(account)
         else:
             self.logger.error(f"staking error: {tx_hash}")
             raise "staking error"
