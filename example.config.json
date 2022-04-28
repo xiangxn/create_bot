@@ -1,0 +1,32 @@
+{
+    "chain_rpc": "https://bsc-dataseed.binance.org/",
+    "account_count": 500,
+    "per_request": 200,
+    "staking_interval": 1200,
+    "staking_symbol": "PNUT",
+    "main_account": "0x145F356161c7F698f13d7d4C9f4395176a4fC4AA",
+    "main_account_key": "key ...",
+    "contracts": {
+        "MultiSend": "0xa0613b63C30758485A2ecd3382Cd253707419bd7",
+        "ERC20Staking": "0x25108c0d83Ee16b81f63B49F0F37933cFC8ea0b2"
+    },
+    "distribute": [
+        {
+            "symbol": "BNB",
+            "amount": 0.001,
+            "address": ""
+        },
+        {
+            "symbol": "PNUT",
+            "amount": [
+                3,
+                10
+            ],
+            "address": "0x705931A83C9b22fB29985f28Aee3337Aa10EFE11"
+        }
+    ],
+    "mongo": {
+        "host": "mongodb://localhost:3001/",
+        "db": "account_db"
+    }
+}
