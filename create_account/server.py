@@ -66,7 +66,7 @@ class Server:
         contract = self.web3.eth.contract(address=address, abi=self._get_abi("ERC20"))
         approved = contract.functions.allowance(_from, target_contract).call()
         if approved >= amount:
-            self.logger.debug(f"{target_contract} approveed {amount}, skip operation")
+            self.logger.debug(f"{target_contract} approveed {Web3.fromWei(amount,'ether')}, skip operation")
             return
         tx = contract.functions.approve(target_contract, amount).buildTransaction({"from": _from, "gasPrice": self.web3.eth.gas_price})
         nonce = self.web3.eth.get_transaction_count(_from)
