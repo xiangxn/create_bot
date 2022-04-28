@@ -62,12 +62,16 @@ class Server:
             self.logger.error(f"multi_send error: {tx_hash}")
             raise "multi_send error"
 
-    def approve(self, address, amount, target_contract):
+    def approve(self, address, amount, target_contract, _from, _from_key):
         contract = self.web3.eth.contract(address=address, abi=self._get_abi("ERC20"))
-        tx = contract.functions.approve(target_contract, amount).buildTransaction({"from": self.defaultAccount, "gasPrice": self.web3.eth.gas_price})
-        nonce = self.web3.eth.get_transaction_count(self.defaultAccount)
+        approved = contract.functions.allowance(_from, target_contract).call()
+        if approved >= amount:
+            self.logger.debug(f"{target_contract} approveed {amount}, skip operation")
+            return
+        tx = contract.functions.approve(target_contract, amount).buildTransaction({"from": _from, "gasPrice": self.web3.eth.gas_price})
+        nonce = self.web3.eth.get_transaction_count(_from)
         tx.update({'nonce': nonce})
-        signed_tx = self.web3.eth.account.sign_transaction(tx, self.config['main_account_key'])
+        signed_tx = self.web3.eth.account.sign_transaction(tx, _from_key)
         trx_id = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         tx_hash = self.web3.toHex(trx_id)
         result = self.web3.eth.wait_for_transaction_receipt(tx_hash)
@@ -79,18 +83,19 @@ class Server:
 
     async def _run_transfer(self):
         """根据配置为所有地址分发代币"""
-        accounts = Keys.objects(isTransfer=0).limit(self.config['account_count'])
-        self.logger.debug(f"Read to {len(accounts)} addresses.")
         coins = self.config['distribute']
+        accounts = Keys.objects(isTransfer__lt=len(coins)).limit(self.config['account_count'])
+        self.logger.debug(f"Read to {len(accounts)} addresses.")
         addresses = []
         amounts = []
-        coin_index = 1
-        for coin in coins:
+        for index in range(1, len(coins) + 1):
+            coin = coins[index - 1]
             token = coin['address']
             symbol = coin['symbol']
             self.logger.debug(f"distribute token [{symbol}]: {token}")
             if token:
-                self.approve(token, MAX_WEI, self.config['contracts']['MultiSend'])
+                self.approve(token, MAX_WEI, self.config['contracts']['MultiSend'], self.defaultAccount, self.config['main_account_key'])
+                await asyncio.sleep(5)
             random_range = coin['amount']
             max_amount = 0
             min_amount = 0
@@ -102,6 +107,7 @@ class Server:
             self.logger.debug(f"Random range: min {max_amount}, max {min_amount}")
             save_accounts = []
             for account in accounts:
+                if account.isTransfer >= index: continue
                 if min_amount != max_amount:
                     amount = random.randrange(min_amount, max_amount, int(Web3.toWei(0.5, "ether")))
                 else:
@@ -112,23 +118,23 @@ class Server:
                 if len(addresses) == self.config['per_request']:
                     self.multi_send(token, addresses, amounts, symbol)
                     for ac in save_accounts:
-                        ac.isTransfer = coin_index
+                        ac.isTransfer = index
                         ac.save()
                     self.logger.debug(f"Successfully distributed {len(addresses)} addresses")
                     save_accounts = []
                     addresses = []
                     amounts = []
+                    await asyncio.sleep(5)
             if len(addresses) > 0:
                 self.multi_send(token, addresses, amounts, symbol)
                 for ac in save_accounts:
-                    ac.isTransfer = coin_index
+                    ac.isTransfer = index
                     ac.save()
                 self.logger.debug(f"Successfully distributed {len(addresses)} addresses")
                 save_accounts = []
                 addresses = []
                 amounts = []
-            coin_index += 1
-        # self.approve(token, MIN_WEI,self.config['contracts']['MultiSend'])
+                await asyncio.sleep(5)
 
     def get_run_transfer_tasks(self, loop: asyncio.AbstractEventLoop):
         return [loop.create_task(self._run_transfer())]
@@ -149,8 +155,8 @@ class Server:
         balance = erc20.functions.balanceOf(account.address).call()
         self.logger.debug(f"balance: {account.address} {Web3.fromWei(balance,'ether')} {self.config['staking_symbol']}")
         self.logger.debug(f"start approve: {account.address}")
-        self.approve(erc20.address, balance, contract.address)
-        await asyncio.sleep(3)
+        self.approve(erc20.address, balance, contract.address, account.address, account.privateKey)
+        await asyncio.sleep(5)
         self.logger.debug(f"start staking: {account.address} {Web3.fromWei(balance,'ether')} {self.config['staking_symbol']}")
         tx = contract.functions.deposit(balance).buildTransaction({"from": account.address, "gasPrice": self.web3.eth.gas_price})
         nonce = self.web3.eth.get_transaction_count(account.address)
@@ -172,7 +178,7 @@ class Server:
         staking_interval = self.config['staking_interval']
         while True:
             try:
-                account = Keys.objects(isTransfer=2, isMortgage=False).first()
+                account = Keys.objects(isTransfer=len(self.config['distribute']), isMortgage=False).first()
                 if account:
                     await self._staking(account)
                 else:
