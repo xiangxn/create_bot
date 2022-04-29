@@ -58,7 +58,7 @@ class Server:
         tx_hash = self.web3.toHex(trx_id)
         result = self.web3.eth.wait_for_transaction_receipt(tx_hash)
         if result and result['status']:
-            self.logger.debug(f"multi_send: hash={tx_hash}")
+            self.logger.debug(f"MultiSend hash: {tx_hash}")
         else:
             raise f"MultiSend error: {tx_hash} ==== result: {result}"
 
@@ -71,12 +71,13 @@ class Server:
         tx = contract.functions.approve(target_contract, amount).buildTransaction({"from": _from, "gasPrice": self.web3.eth.gas_price})
         nonce = self.web3.eth.get_transaction_count(_from)
         tx.update({'nonce': nonce})
+        self.logger.debug(f"Start approve: {tx}")
         signed_tx = self.web3.eth.account.sign_transaction(tx, _from_key)
         trx_id = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         tx_hash = self.web3.toHex(trx_id)
         result = self.web3.eth.wait_for_transaction_receipt(tx_hash)
         if result and result['status']:
-            self.logger.debug(f"approve: hash={tx_hash}")
+            self.logger.debug(f"Approve hash: {tx_hash}")
         else:
             raise f"Approve error: {tx_hash} ==== result: {result}"
 
@@ -163,11 +164,12 @@ class Server:
                 'gasPrice': Web3.toWei(5, 'gwei'),
                 'nonce': nonce
             }
+            self.logger.debug(f"Start send balance: {tx}")
             signed_tx = self.web3.eth.account.sign_transaction(tx, account.privateKey)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
             result = self.web3.eth.wait_for_transaction_receipt(tx_hash)
             if result and result['status']:
-                self.logger.debug(f"send_next: hash={self.web3.toHex(tx_hash)}")
+                self.logger.debug(f"Send balance hash: {self.web3.toHex(tx_hash)}")
             else:
                 raise f"Send balance error: {tx_hash} {account.address} ====== result: {result}"
 
@@ -178,11 +180,8 @@ class Server:
         erc20 = self.web3.eth.contract(address=address, abi=self._get_abi("ERC20"))
         contract = self.web3.eth.contract(address=self.config['contracts']['ERC20Staking'], abi=self._get_abi("ERC20Staking"))
         balance = erc20.functions.balanceOf(account.address).call()
-        self.logger.debug(f"balance: {account.address} {Web3.fromWei(balance,'ether')} {self.config['staking_symbol']}")
-        self.logger.debug(f"start approve: {account.address}")
         self.approve(erc20.address, balance, contract.address, account.address, account.privateKey)
         await asyncio.sleep(self.post_interval)
-        self.logger.debug(f"start staking: {account.address} {Web3.fromWei(balance,'ether')} {self.config['staking_symbol']}")
         tx = contract.functions.deposit(balance).buildTransaction({
             "from": account.address,
             "gasPrice": self.web3.eth.gas_price
@@ -194,12 +193,13 @@ class Server:
         nonce = self.web3.eth.get_transaction_count(account.address)
         # tx.update({'gas': gas})
         tx.update({'nonce': nonce})
+        self.logger.debug(f"Start staking: {tx}")
         signed_tx = self.web3.eth.account.sign_transaction(tx, account.privateKey)
         trx_id = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         tx_hash = self.web3.toHex(trx_id)
         result = self.web3.eth.wait_for_transaction_receipt(tx_hash)
         if result and result['status']:
-            self.logger.debug(f"staking: hash={tx_hash}")
+            self.logger.debug(f"Staking hash: {tx_hash}")
             account.isMortgage = True
             account.save()
             await asyncio.sleep(self.post_interval)
