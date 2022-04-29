@@ -2,6 +2,7 @@
     "chain_rpc": "https://bsc-dataseed.binance.org/",
     "account_count": 500,
     "per_request": 200,
+    "post_interval": 10,
     "staking_interval": 1200,
     "staking_symbol": "PNUT",
     "main_account": "0x145F356161c7F698f13d7d4C9f4395176a4fC4AA",

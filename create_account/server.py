@@ -24,6 +24,7 @@ class Server:
         self.web3.middleware_onion.inject(geth_poa_middleware, layer=0)
         self.db_data = mongoengine.connect(db=self.config['mongo']['db'], host=self.config['mongo']['host'])
         self.defaultAccount = self.config['main_account']
+        self.post_interval = self.config['post_interval']
 
     def _get_abi(self, name: str):
         abi = []
@@ -59,8 +60,7 @@ class Server:
         if result and result['status']:
             self.logger.debug(f"multi_send: hash={tx_hash}")
         else:
-            self.logger.error(f"multi_send error: {tx_hash}")
-            raise "multi_send error"
+            raise f"MultiSend error: {tx_hash} ==== result: {result}"
 
     def approve(self, address, amount, target_contract, _from, _from_key):
         contract = self.web3.eth.contract(address=address, abi=self._get_abi("ERC20"))
@@ -78,8 +78,7 @@ class Server:
         if result and result['status']:
             self.logger.debug(f"approve: hash={tx_hash}")
         else:
-            self.logger.error(f"approve error: {tx_hash}")
-            raise "approve error"
+            raise f"Approve error: {tx_hash} ==== result: {result}"
 
     async def _run_transfer(self):
         """根据配置为所有地址分发代币"""
@@ -95,7 +94,7 @@ class Server:
             self.logger.debug(f"distribute token [{symbol}]: {token}")
             if token:
                 self.approve(token, MAX_WEI, self.config['contracts']['MultiSend'], self.defaultAccount, self.config['main_account_key'])
-                await asyncio.sleep(5)
+                await asyncio.sleep(self.post_interval)
             random_range = coin['amount']
             max_amount = 0
             min_amount = 0
@@ -124,7 +123,7 @@ class Server:
                     save_accounts = []
                     addresses = []
                     amounts = []
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(self.post_interval)
             if len(addresses) > 0:
                 self.multi_send(token, addresses, amounts, symbol)
                 for ac in save_accounts:
@@ -134,7 +133,7 @@ class Server:
                 save_accounts = []
                 addresses = []
                 amounts = []
-                await asyncio.sleep(5)
+                await asyncio.sleep(self.post_interval)
 
     def get_run_transfer_tasks(self, loop: asyncio.AbstractEventLoop):
         return [loop.create_task(self._run_transfer())]
@@ -170,8 +169,7 @@ class Server:
             if result and result['status']:
                 self.logger.debug(f"send_next: hash={self.web3.toHex(tx_hash)}")
             else:
-                self.logger.error(f"send_next error: {tx_hash}")
-                raise "send_next error"
+                raise f"Send balance error: {tx_hash} {account.address} ====== result: {result}"
 
     async def _staking(self, account):
         address = self._get_staking_address()
@@ -183,7 +181,7 @@ class Server:
         self.logger.debug(f"balance: {account.address} {Web3.fromWei(balance,'ether')} {self.config['staking_symbol']}")
         self.logger.debug(f"start approve: {account.address}")
         self.approve(erc20.address, balance, contract.address, account.address, account.privateKey)
-        await asyncio.sleep(5)
+        await asyncio.sleep(self.post_interval)
         self.logger.debug(f"start staking: {account.address} {Web3.fromWei(balance,'ether')} {self.config['staking_symbol']}")
         tx = contract.functions.deposit(balance).buildTransaction({
             "from": account.address,
@@ -204,11 +202,10 @@ class Server:
             self.logger.debug(f"staking: hash={tx_hash}")
             account.isMortgage = True
             account.save()
-            await asyncio.sleep(5)
+            await asyncio.sleep(self.post_interval)
             await self._send_next(account)
         else:
-            self.logger.error(f"staking error: {tx_hash}")
-            raise "staking error"
+            raise f"Deposit error: {tx_hash} {account.address} {Web3.fromWei(balance,'ether')} ===== result: {result}"
 
     async def _run_staking(self):
         """根据配置质押"""
