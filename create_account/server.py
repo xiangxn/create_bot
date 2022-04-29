@@ -60,7 +60,7 @@ class Server:
         if result and result['status']:
             self.logger.debug(f"MultiSend hash: {tx_hash}")
         else:
-            raise f"MultiSend error: {tx_hash} ==== result: {result}"
+            raise f"MultiSend error: {tx_hash} {tx} ==== result: {result}"
 
     def approve(self, address, amount, target_contract, _from, _from_key):
         contract = self.web3.eth.contract(address=address, abi=self._get_abi("ERC20"))
@@ -79,7 +79,7 @@ class Server:
         if result and result['status']:
             self.logger.debug(f"Approve hash: {tx_hash}")
         else:
-            raise f"Approve error: {tx_hash} ==== result: {result}"
+            raise f"Approve error: {tx_hash} {tx} ==== result: {result}"
 
     async def _run_transfer(self):
         """根据配置为所有地址分发代币"""
@@ -171,7 +171,7 @@ class Server:
             if result and result['status']:
                 self.logger.debug(f"Send balance hash: {self.web3.toHex(tx_hash)}")
             else:
-                raise f"Send balance error: {tx_hash} {account.address} ====== result: {result}"
+                raise f"Send balance error: {tx_hash} {tx} ====== result: {result}"
 
     async def _staking(self, account):
         address = self._get_staking_address()
@@ -205,7 +205,7 @@ class Server:
             await asyncio.sleep(self.post_interval)
             await self._send_next(account)
         else:
-            raise f"Deposit error: {tx_hash} {account.address} {Web3.fromWei(balance,'ether')} ===== result: {result}"
+            raise f"Deposit error: {tx_hash} {tx} ===== result: {result}"
 
     async def _run_staking(self):
         """根据配置质押"""
@@ -216,11 +216,11 @@ class Server:
                 if account:
                     await self._staking(account)
                 else:
-                    self.logger.debug("staking complete.")
+                    self.logger.debug("Staking complete.")
                     break
                 await asyncio.sleep(staking_interval)
             except Exception as e:
-                self.logger.exception(f"staking error: {e}")
+                self.logger.exception(f"Staking error: {e}")
 
     def get_run_staking_tasks(self, loop: asyncio.AbstractEventLoop):
         return [loop.create_task(self._run_staking())]
