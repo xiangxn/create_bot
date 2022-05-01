@@ -66,12 +66,12 @@ class Server:
         contract = self.web3.eth.contract(address=address, abi=self._get_abi("ERC20"))
         approved = contract.functions.allowance(_from, target_contract).call()
         if approved >= amount:
-            self.logger.debug(f"{target_contract} approveed {Web3.fromWei(amount,'ether')}, skip operation")
+            self.logger.debug(f"{target_contract} approveed {Web3.fromWei(amount,'ether')} {self.config['staking_symbol']}, skip operation")
             return
         tx = contract.functions.approve(target_contract, amount).buildTransaction({"from": _from, "gasPrice": self.web3.eth.gas_price})
         nonce = self.web3.eth.get_transaction_count(_from)
         tx.update({'nonce': nonce})
-        self.logger.debug(f"Start approve: {tx}")
+        self.logger.debug(f"Start approve: {Web3.fromWei(amount,'ether')} {self.config['staking_symbol']} >> {tx}")
         signed_tx = self.web3.eth.account.sign_transaction(tx, _from_key)
         trx_id = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         tx_hash = self.web3.toHex(trx_id)
@@ -193,7 +193,7 @@ class Server:
         nonce = self.web3.eth.get_transaction_count(account.address)
         # tx.update({'gas': gas})
         tx.update({'nonce': nonce})
-        self.logger.debug(f"Start staking: {tx}")
+        self.logger.debug(f"Start staking: {Web3.fromWei(balance,'ether')} {self.config['staking_symbol']} >> {tx}")
         signed_tx = self.web3.eth.account.sign_transaction(tx, account.privateKey)
         trx_id = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         tx_hash = self.web3.toHex(trx_id)
