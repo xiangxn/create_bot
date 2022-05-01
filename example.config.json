@@ -11,6 +11,13 @@
         "MultiSend": "0xa0613b63C30758485A2ecd3382Cd253707419bd7",
         "ERC20Staking": "0x25108c0d83Ee16b81f63B49F0F37933cFC8ea0b2"
     },
+    "fees": {
+        "fee_transfer": 105000000000000,
+        "gas_price": 5000000000,
+        "gas_transfer": 21000,
+        "gas_approve": 44284,
+        "gas_deposit": 234482
+    },
     "distribute": [
         {
             "symbol": "BNB",

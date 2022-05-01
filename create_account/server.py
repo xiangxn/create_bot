@@ -60,7 +60,7 @@ class Server:
         if result and result['status']:
             self.logger.debug(f"MultiSend hash: {tx_hash}")
         else:
-            raise f"MultiSend error: {tx_hash} {tx} ==== result: {result}"
+            raise Exception(f"MultiSend error: {tx_hash} {tx} ==== result: {result}")
 
     def approve(self, address, amount, target_contract, _from, _from_key):
         contract = self.web3.eth.contract(address=address, abi=self._get_abi("ERC20"))
@@ -68,7 +68,11 @@ class Server:
         if approved >= amount:
             self.logger.debug(f"{target_contract} approveed {Web3.fromWei(amount,'ether')} {self.config['staking_symbol']}, skip operation")
             return
-        tx = contract.functions.approve(target_contract, amount).buildTransaction({"from": _from, "gasPrice": self.web3.eth.gas_price})
+        tx = contract.functions.approve(target_contract, amount).buildTransaction({
+            "from": _from,
+            "gasPrice": self.config['fees']['gas_price'],
+            "gas": self.config['fees']['gas_approve']
+        })
         nonce = self.web3.eth.get_transaction_count(_from)
         tx.update({'nonce': nonce})
         self.logger.debug(f"Start approve: {Web3.fromWei(amount,'ether')} {self.config['staking_symbol']} >> {tx}")
@@ -79,7 +83,7 @@ class Server:
         if result and result['status']:
             self.logger.debug(f"Approve hash: {tx_hash}")
         else:
-            raise f"Approve error: {tx_hash} {tx} ==== result: {result}"
+            raise Exception(f"Approve error: {tx_hash} {tx} ==== result: {result}")
 
     async def _run_transfer(self):
         """根据配置为所有地址分发代币"""
@@ -148,7 +152,7 @@ class Server:
 
     async def _send_next(self, account):
         balance = self.web3.eth.get_balance(account.address)
-        fee = Web3.toWei(0.000105, "ether")
+        fee = self.config['fees']['fee_transfer']
         if balance > fee:
             next_account = Keys.objects(id=account.id + 1).first()
             if not next_account:
@@ -160,8 +164,8 @@ class Server:
                 'to': to,
                 'from': account.address,
                 'value': balance - fee,
-                'gas': 21000,
-                'gasPrice': Web3.toWei(5, 'gwei'),
+                'gas': self.config['fees']['gas_transfer'],
+                'gasPrice': self.config['fees']['gas_price'],
                 'nonce': nonce
             }
             self.logger.debug(f"Start send balance: {tx}")
@@ -171,7 +175,7 @@ class Server:
             if result and result['status']:
                 self.logger.debug(f"Send balance hash: {self.web3.toHex(tx_hash)}")
             else:
-                raise f"Send balance error: {tx_hash} {tx} ====== result: {result}"
+                raise Exception(f"Send balance error: {tx_hash} {tx} ====== result: {result}")
 
     async def _staking(self, account):
         address = self._get_staking_address()
@@ -184,7 +188,9 @@ class Server:
         await asyncio.sleep(self.post_interval)
         tx = contract.functions.deposit(balance).buildTransaction({
             "from": account.address,
-            "gasPrice": self.web3.eth.gas_price
+            # "gasPrice": self.web3.eth.gas_price
+            "gasPrice": self.config['fees']['gas_price'],
+            "gas": self.config['fees']['gas_deposit']
             # 'maxFeePerGas': 2000000000,
             # 'maxPriorityFeePerGas': 1000000000
         })
@@ -205,7 +211,7 @@ class Server:
             await asyncio.sleep(self.post_interval)
             await self._send_next(account)
         else:
-            raise f"Deposit error: {tx_hash} {tx} ===== result: {result}"
+            raise Exception(f"Deposit error: {tx_hash} {tx} ===== result: {result}")
 
     async def _run_staking(self):
         """根据配置质押"""
